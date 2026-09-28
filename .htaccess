@@ -12,7 +12,7 @@ RedirectMatch 404 ^/khlang/(lib|data|tools|fonts|vendor|storage)(/|$)
     <FilesMatch "\.(js|css)$">
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
-    <FilesMatch "\.(png|svg|woff2)$">
+    <FilesMatch "\.(png|svg|woff2|webp)$">
         Header set Cache-Control "public, max-age=2592000"
     </FilesMatch>
 </IfModule>

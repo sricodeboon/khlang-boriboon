@@ -52,6 +52,7 @@ function page_head(string $title, string $active = '', string $extraHead = '', s
       <?php endforeach; ?>
     </nav>
     <div class="who">
+      <a class="linkish" href="guide.php" style="color:#BFCAD3">คู่มือ</a>
       <span class="school" title="<?= h($s['name']) ?>"><?= h($s['name']) ?></span>
       <form method="post" action="logout.php"><?= csrf_field() ?><button class="linkish" type="submit">ออก</button></form>
     </div>
@@ -76,7 +77,7 @@ function flash_script(): string {
 
 function page_foot(string $scripts = ''): void { ?>
 <footer class="foot"><div class="wrap">
-  <span><?= KL_NAME ?> · ระบบทะเบียนครุภัณฑ์โรงเรียน</span>
+  <span><?= KL_NAME ?> · ระบบทะเบียนครุภัณฑ์โรงเรียน · <a href="guide.php">คู่มือการใช้งาน</a></span>
   <span>ใช้บัญชีเดียวกับ <a href="<?= h(tt_url('')) ?>">ตารางบริบูรณ์</a> · โดย <a href="/">ศรีโค้ดบูรณ์</a></span>
 </div></footer>
 <script type="module" nonce="<?= csp_nonce() ?>" src="<?= asset_v('assets/app.js') ?>"></script>

@@ -19,7 +19,7 @@ if (!$u) {
 <main class="wrap">
   <header class="land-top">
     <a class="brand" href="index.php"><img src="assets/brand/mark-color.svg" alt="" width="34" height="34"><span>คลัง<span class="b">{</span>บริบูรณ์<span class="b">}</span></span></a>
-    <a class="btn btn-sm" href="<?= h(tt_url('')) ?>">ตารางบริบูรณ์</a>
+    <nav class="actions"><a class="btn btn-sm" href="guide.php">คู่มือการใช้งาน</a><a class="btn btn-sm" href="<?= h(tt_url('')) ?>">ตารางบริบูรณ์</a></nav>
   </header>
   <section class="hero">
     <div>
@@ -87,7 +87,7 @@ page_head('ภาพรวม · คลังบริบูรณ์', 'home');
 <main class="wrap page">
   <?= flash_script() ?>
   <div class="page-h">
-    <div><h1>ภาพรวมครุภัณฑ์</h1><p><?= h($school['name']) ?> · ปีงบประมาณ <?= $fy ?></p></div>
+    <div><h1>ภาพรวมครุภัณฑ์</h1><p><?= h($school['name']) ?> · ปีงบประมาณ <?= $fy ?> · <a href="guide.php">คู่มือการใช้งาน</a></p></div>
     <div class="actions">
       <a class="btn" href="scan.php"><?= icon(KL_NAV['scan'][2], 18) ?>สแกน</a>
       <a class="btn btn-primary" href="edit.php">+ ลงทะเบียนครุภัณฑ์</a>
