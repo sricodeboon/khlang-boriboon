@@ -31,6 +31,14 @@ function page_head(string $title, string $active = '', string $extraHead = '', s
 <title><?= h($title) ?></title>
 <meta name="description" content="<?= h($desc) ?>">
 <meta name="theme-color" content="#0F2438">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ศรีโค้ดบูรณ์">
+<meta property="og:title" content="<?= h($title) ?>">
+<meta property="og:description" content="<?= h($desc) ?>">
+<meta property="og:image" content="<?= h(base_url('og.png')) ?>">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:url" content="<?= h(base_url(basename($_SERVER['SCRIPT_NAME'] ?? '') === 'index.php' ? '' : basename($_SERVER['SCRIPT_NAME'] ?? ''))) ?>">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="csrf" content="<?= h(csrf_token()) ?>">
 <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/brand/favicon-32.png" sizes="32x32" type="image/png">
