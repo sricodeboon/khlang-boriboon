@@ -1,0 +1,20 @@
+Copyright (c) 2026 Sricodeboon (ศรีโค้ดบูรณ์). All rights reserved.
+
+This repository is published so that its source code can be viewed and studied.
+No license is granted to copy, modify, distribute, sublicense, host as a service,
+or use this software commercially, in whole or in part, without prior written
+permission from the copyright holder. Contact: sricodeboon@gmail.com
+
+สงวนลิขสิทธิ์ © 2569 ศรีโค้ดบูรณ์ เผยแพร่โค้ดเพื่อให้ดูและศึกษาได้เท่านั้น ไม่อนุญาตให้คัดลอก
+ดัดแปลง แจกจ่าย นำไปให้บริการ หรือใช้เชิงพาณิชย์ ไม่ว่าทั้งหมดหรือบางส่วน โดยไม่ได้รับอนุญาต
+เป็นลายลักษณ์อักษรจากเจ้าของลิขสิทธิ์
+
+-------------------------------------------------------------------------------
+Third-party material included in this repository keeps its own license:
+
+- assets/vendor/zxing.min.js — ZXing for JS (@zxing/library 0.21.3), Apache License 2.0
+  full text: assets/vendor/LICENSE-zxing.txt
+- assets/notify.js loads SweetAlert2 11 (MIT) from cdnjs at runtime
+- fonts/THSarabunNew-*.ttf — TH Sarabun New (SIPA), GPL with font exception · fonts/LICENSE-THSarabunNew.txt
+- fonts/Sarabun-*.ttf — Sarabun, SIL Open Font License 1.1 · fonts/OFL-Sarabun.txt
+- vendor/ (installed by composer, not in git) — mPDF (GPL-2.0-only), mpdf/qrcode (MIT)

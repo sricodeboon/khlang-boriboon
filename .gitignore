@@ -1,0 +1,14 @@
+# ค่าตั้งจริงบนโฮสต์
+config.php
+.DS_Store
+*.zip
+*.pdf
+
+# รูปถ่ายและไฟล์ชั่วคราวของผู้ใช้ (อยู่บนโฮสต์เท่านั้น)
+storage/photos/*
+storage/tmp/
+!storage/.htaccess
+
+# สร้างจาก composer (tools/build-zip.sh)
+/vendor/
+!storage/photos/.keep
