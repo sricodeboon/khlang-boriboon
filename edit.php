@@ -156,7 +156,7 @@ page_head(($item ? 'แก้ไข ' . $item['asset_no'] : 'ลงทะเบ�
         <?php if ($room > 0): ?>
         <div class="gallery" id="photo-preview"></div>
         <label class="btn" style="margin-top:8px"><?= icon('<path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/>', 18) ?>ถ่ายรูป/เลือกรูป
-          <input class="sr" type="file" name="photos[]" accept="image/*" multiple data-photos data-room="<?= $room ?>"></label>
+          <input class="sr" type="file" name="photos[]" accept="image/*,.heic,.heif" multiple data-photos data-room="<?= $room ?>"></label>
         <p class="photo-status" id="photo-status">ระบบย่อรูปให้เล็กก่อนส่ง (ประมาณ 100–300 KB ต่อรูป)</p>
         <?php else: ?><p class="hint">มีรูปครบแล้ว ลบรูปเดิมได้ที่หน้ารายละเอียด</p><?php endif; ?>
       </fieldset>

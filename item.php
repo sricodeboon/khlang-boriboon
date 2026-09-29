@@ -131,7 +131,7 @@ page_head($item['asset_no'] . ' ' . $item['name'] . ' · คลังบริ�
             <?php if (count($photos) < KL_PHOTO_MAX): ?>
               <label class="add" style="border:1px dashed var(--line-2);aspect-ratio:4/3;display:grid;place-items:center;cursor:pointer;color:var(--muted);text-align:center;border-radius:2px">
                 <span><?= icon('<path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/>', 24) ?><br>ถ่าย/เพิ่มรูป</span>
-                <input class="sr" type="file" accept="image/*" multiple id="add-photo" data-room="<?= KL_PHOTO_MAX - count($photos) ?>"></label>
+                <input class="sr" type="file" accept="image/*,.heic,.heif" multiple id="add-photo" data-room="<?= KL_PHOTO_MAX - count($photos) ?>"></label>
             <?php endif; ?>
           </div>
           <p class="photo-status" id="photo-status"></p>
@@ -253,7 +253,7 @@ document.getElementById("add-photo")?.addEventListener("change", async (e) => {
   try {
     const fd = new FormData(); fd.append("id", id);
     let thumb = "";
-    for (const [i, f] of files.entries()) { const r = await compress(f); fd.append("photos[]", r.blob, "p" + i + ".jpg"); thumb ||= r.thumb; }
+    for (const [i, f] of files.entries()) { const r = await compress(f, (m) => { st.textContent = m; }); fd.append("photos[]", r.blob, "p" + i + ".jpg"); thumb ||= r.thumb; }
     fd.append("thumb", thumb);
     st.textContent = "กำลังอัปโหลด…";
     await api("photo.add", fd);
