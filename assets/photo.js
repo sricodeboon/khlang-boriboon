@@ -4,7 +4,7 @@ import * as notify from './notify.js';
 
 const EDGE = 1280, TARGET = 350_000, MAX = 3;
 
-async function decode(file) {
+async function decodeNative(file) {
   try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch {
     // เบราว์เซอร์เก่า/ไฟล์บางชนิด: ผ่าน <img>
@@ -18,12 +18,37 @@ async function decode(file) {
   }
 }
 
+// รูป HEIC/HEIF จาก iPhone: Safari เปิดได้เอง แต่ Chrome/Edge/Firefox/Android เปิดไม่ได้
+// ดูจากหัวไฟล์ (กล่อง ftyp) ไม่เชื่อแค่นามสกุล เพราะไฟล์ที่ส่งผ่าน LINE/Drive มักไม่มี type
+const HEIF_BRANDS = ['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs', 'mif1', 'msf1'];
+async function looksHeic(file) {
+  if (/^image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name)) return true;
+  const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const s = String.fromCharCode(...b);
+  return s.slice(4, 8) === 'ftyp' && HEIF_BRANDS.includes(s.slice(8, 12));
+}
+
+// ตัวแปลง HEIC (~3MB) โหลดเฉพาะตอนเจอไฟล์ HEIC ครั้งแรก · ใช้ build csp (ไม่มี eval/wasm) ผ่าน CSP ของระบบ
+let heicLib = null;
+const loadHeic = () => (heicLib ??= import('./vendor/heic-to.min.js').catch((e) => { heicLib = null; throw e; }));
+
+async function decode(file, onStage) {
+  try { return await decodeNative(file); }
+  catch (e) {
+    if (!(await looksHeic(file))) throw e;
+    onStage?.('กำลังแปลงรูป HEIC… (ครั้งแรกใช้เวลาสักครู่)');
+    const { heicTo } = await loadHeic();
+    return heicTo({ blob: file, type: 'bitmap' });
+  }
+}
+
 const toBlob = (canvas, q) => new Promise((ok) => canvas.toBlob(ok, 'image/jpeg', q));
 
-export async function compress(file) {
+/** ย่อรูปหนึ่งไฟล์ · onStage(ข้อความ) แจ้งความคืบหน้าเมื่อต้องแปลง HEIC */
+export async function compress(file, onStage) {
   let bmp;
-  try { bmp = await decode(file); }
-  catch { throw new Error(`เปิดรูป “${file.name}” ไม่ได้ (รูป HEIC ให้ถ่ายผ่านปุ่มถ่ายรูป หรือแปลงเป็น JPG ก่อน)`); }
+  try { bmp = await decode(file, onStage); }
+  catch { throw new Error(`เปิดรูป “${file.name}” ไม่ได้ ไฟล์อาจเสียหรือไม่ใช่รูปภาพ ลองถ่ายใหม่ผ่านปุ่มถ่ายรูป หรือแปลงเป็น JPG ก่อน`); }
   const w = bmp.width, h = bmp.height;
   const s = Math.min(1, EDGE / Math.max(w, h));
   const c = document.createElement('canvas');
@@ -67,7 +92,7 @@ export function bind(input) {
       let before = 0, after = 0;
       for (const f of files) {
         try {
-          const r = await compress(f);
+          const r = await compress(f, (msg) => { if (status) status.textContent = msg; });
           ready.push(r);
           before += r.before; after += r.after;
           if (preview) {
