@@ -25,7 +25,7 @@ function normalize_photo(string $path): array {
     $bin = (string) file_get_contents($path);
     $info = @getimagesizefromstring($bin);
     if (!$info || !in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP], true)) {
-        throw new InvalidArgumentException('รับเฉพาะรูป JPG PNG หรือ WebP (รูป HEIC จาก iPhone ให้ถ่ายผ่านปุ่มถ่ายรูปในระบบ)');
+        throw new InvalidArgumentException('รับเฉพาะรูป JPG PNG WebP หรือ HEIC จาก iPhone (ระบบแปลงให้ก่อนส่ง) กรุณาเปิดหน้านี้ใหม่แล้วเลือกรูปอีกครั้ง');
     }
     [$w, $h] = $info;
     $ok = strlen($bin) <= KL_PHOTO_BYTES && max($w, $h) <= KL_PHOTO_EDGE && $info[2] !== IMAGETYPE_PNG;
