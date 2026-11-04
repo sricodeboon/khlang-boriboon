@@ -36,7 +36,8 @@ $total = (int) db_val("SELECT COUNT(*) FROM kl_items WHERE $w", $args);
 $sumPrice = (float) db_val("SELECT COALESCE(SUM(price),0) FROM kl_items WHERE $w", $args);
 $pages = max(1, (int) ceil($total / PER));
 $page = min($page, $pages);
-$rows = db_all("SELECT id, asset_no, cat_code, name, brand, model, serial_no, price, acquired_on, location, custodian, status, on_loan, thumb, checked_fy
+$rows = db_all("SELECT id, asset_no, cat_code, name, brand, model, serial_no, price, acquired_on, location, custodian, status, on_loan, thumb, checked_fy,
+    (SELECT l.kind FROM kl_loans l WHERE l.item_id = kl_items.id AND l.returned_on IS NULL ORDER BY l.id DESC LIMIT 1) AS loan_kind
     FROM kl_items WHERE $w ORDER BY cat_code, fy, seq, id LIMIT " . PER . ' OFFSET ' . (($page - 1) * PER), $args);
 $places = array_column(db_all("SELECT DISTINCT location FROM kl_items WHERE school_id = ? AND location <> '' ORDER BY location", [$sid]), 'location');
 $usedCats = array_column(db_all('SELECT DISTINCT cat_code FROM kl_items WHERE school_id = ?', [$sid]), 'cat_code');
@@ -94,7 +95,7 @@ page_head('ทะเบียนครุภัณฑ์ · คลังบร�
             <td><a class="rowlink" href="item.php?id=<?= (int) $r['id'] ?>"><?= h($r['name']) ?></a><span class="sub"><?= h(trim($r['brand'] . ' ' . $r['model'])) ?><?= $r['serial_no'] ? ' · S/N <span class="mono">' . h($r['serial_no']) . '</span>' : '' ?></span></td>
             <td class="hide-m"><?= h($r['location'] ?: '–') ?><span class="sub"><?= h($r['custodian'] ?: '') ?></span></td>
             <td class="num"><?= money($r['price']) ?><span class="sub"><?= th_date($r['acquired_on']) ?></span></td>
-            <td><?= status_badge($r['status']) ?><?= $r['on_loan'] ? ' <span class="st st-loan">ถูกยืม</span>' : '' ?><?= (int) $r['checked_fy'] === $fy ? '<span class="sub">ตรวจนับแล้ว</span>' : '' ?></td>
+            <td><?= status_badge($r['status']) ?><?= $r['on_loan'] ? ' <span class="st st-loan">' . ($r['loan_kind'] === 'issue' ? 'เบิกไปใช้' : 'ถูกยืม') . '</span>' : '' ?><?= (int) $r['checked_fy'] === $fy ? '<span class="sub">ตรวจนับแล้ว</span>' : '' ?></td>
           </tr>
         <?php endforeach; ?>
         </tbody>

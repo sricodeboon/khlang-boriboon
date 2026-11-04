@@ -17,7 +17,7 @@ function item_brief(array $it): array {
         'serial' => $it['serial_no'], 'location' => $it['location'], 'custodian' => $it['custodian'],
         'status' => $it['status'], 'statusLabel' => status_label($it['status']), 'thumb' => $it['thumb'],
         'checked' => (int) $it['checked_fy'] === fiscal_year(),
-        'loan' => $loan ? ['borrower' => $loan['borrower'], 'due' => th_date($loan['due_on']), 'late' => $loan['due_on'] && $loan['due_on'] < date('Y-m-d')] : null,
+        'loan' => $loan ? ['kind' => $loan['kind'], 'borrower' => $loan['borrower'], 'due' => th_date($loan['due_on']), 'late' => $loan['due_on'] && $loan['due_on'] < date('Y-m-d')] : null,
     ];
 }
 

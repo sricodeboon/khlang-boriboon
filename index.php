@@ -150,12 +150,12 @@ page_head('ภาพรวม · คลังบริบูรณ์', 'home');
     </div>
     <div>
       <section class="panel">
-        <div class="panel-h"><h2>ยืมอยู่</h2><a class="muted" href="loans.php">ทั้งหมด</a></div>
-        <?php if (!$loans): ?><p class="empty">ไม่มีครุภัณฑ์ที่ยืมออกไป</p><?php else: ?>
+        <div class="panel-h"><h2>ยืม/เบิกอยู่</h2><a class="muted" href="loans.php">ทั้งหมด</a></div>
+        <?php if (!$loans): ?><p class="empty">ไม่มีครุภัณฑ์ที่ยืมหรือเบิกออกไป</p><?php else: ?>
         <ul class="feed">
           <?php foreach ($loans as $l): $isLate = $l['due_on'] && $l['due_on'] < $today; ?>
             <li><a class="rowlink" href="item.php?id=<?= (int) $l['item_id'] ?>"><?= h($l['item_name']) ?></a> <span class="no muted"><?= h($l['asset_no']) ?></span>
-              <time><?= h($l['borrower']) ?> · คืน <?= th_date($l['due_on']) ?> <?= $isLate ? '<span class="st st-late">เกินกำหนด</span>' : '' ?></time></li>
+              <time><?= h($l['borrower']) ?> · <?= $l['due_on'] ? 'คืน ' . th_date($l['due_on']) : 'เบิกไปประจำใช้' ?> <?= $isLate ? '<span class="st st-late">เกินกำหนด</span>' : '' ?></time></li>
           <?php endforeach; ?>
         </ul><?php endif; ?>
       </section>

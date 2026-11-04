@@ -204,8 +204,9 @@ function pdf_list(array $items, array $school, array $set, string $subtitle): Mp
 // ---------------- ใบยืมพัสดุ ----------------
 function pdf_loan(array $loan, array $it, array $school, array $set): Mpdf {
     $m = make_mpdf('A4', ['margin_top' => 18, 'margin_left' => 25, 'margin_right' => 20]);
-    $m->SetTitle('ใบยืมพัสดุ ' . $it['asset_no']);
     $issue = $loan['kind'] === 'issue';
+    $m->SetTitle(($issue ? 'ใบเบิกพัสดุ ' : 'ใบยืมพัสดุ ') . $it['asset_no']);
+    $cond = implode(' · ', array_filter([!empty($loan['return_status']) ? status_label($loan['return_status']) : '', (string) $loan['return_note']], fn($x) => $x !== ''));
     $html = PDF_CSS . '<div style="text-align:right;font-size:13pt">เลขที่ ' . (int) $loan['id'] . '/' . fiscal_year($loan['out_on']) . '</div>
 <h1>' . ($issue ? 'ใบเบิกพัสดุ' : 'ใบยืมพัสดุ') . '</h1>
 <p class="sub">' . e($school['name']) . '</p>
@@ -218,7 +219,7 @@ function pdf_loan(array $loan, array $it, array $school, array $set): Mpdf {
 <table class="sign"><tr>' . sign_cell('ผู้' . ($issue ? 'เบิก' : 'ยืม'), $loan['borrower'], '') . sign_cell('ผู้อนุมัติ', $loan['approver'] ?: $set['boss'], $loan['approver'] && $loan['approver'] !== $set['boss'] ? '' : $set['boss_pos']) . '</tr>
 <tr>' . sign_cell('ผู้จ่ายพัสดุ', $set['officer'], $set['officer_pos']) . '<td></td></tr></table>
 <div style="margin-top:8mm;border-top:0.2mm solid #000;padding-top:3mm"><b>การส่งคืน</b><br>
-ได้รับพัสดุคืนแล้ว เมื่อวันที่ ' . ($loan['returned_on'] ? th_date($loan['returned_on']) : '..........................................') . ' สภาพ ' . e($loan['return_note'] ?: '..........................................................') . '</div>
+ได้รับพัสดุคืนแล้ว เมื่อวันที่ ' . ($loan['returned_on'] ? th_date($loan['returned_on']) : '..........................................') . ' สภาพ ' . e($cond !== '' ? $cond : '..........................................................') . '</div>
 <table class="sign" style="margin-top:2mm"><tr>' . sign_cell('ผู้ส่งคืน', $loan['borrower'], '') . sign_cell('ผู้รับคืน', $set['officer'], $set['officer_pos']) . '</tr></table>';
     pdf_write($m, $html);
     return $m;

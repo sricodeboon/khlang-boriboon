@@ -108,10 +108,16 @@ function kl_migrate(PDO $pdo, string $driver): void {
         due_on DATE NULL,
         approver VARCHAR(200) NULL,
         returned_on DATE NULL,
+        return_status VARCHAR(20) NULL,
         return_note VARCHAR(500) NULL,
         created_by INT NULL,
         created_at DATETIME NOT NULL
     )$tail");
+    // ฐานเดิมที่สร้างก่อนมีคอลัมน์สภาพเมื่อคืน
+    $loanCols = $driver === 'mysql'
+        ? array_column($pdo->query('SHOW COLUMNS FROM kl_loans')->fetchAll(), 'Field')
+        : array_column($pdo->query('PRAGMA table_info(kl_loans)')->fetchAll(), 'name');
+    if (!in_array('return_status', $loanCols, true)) $pdo->exec('ALTER TABLE kl_loans ADD COLUMN return_status VARCHAR(20) NULL');
     // ประวัติทุกความเคลื่อนไหวของครุภัณฑ์ (ใช้เป็นบันทึกในทะเบียนคุม)
     $pdo->exec("CREATE TABLE IF NOT EXISTS kl_log (
         id $id,

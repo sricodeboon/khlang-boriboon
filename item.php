@@ -13,7 +13,9 @@ if (!$item) { flash('ไม่พบครุภัณฑ์นี้'); redirec
 $set = settings($sid);
 $uid = (int) $u['id'];
 $today = date('Y-m-d');
-$validDate = fn(string $d) => preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) ? $d : null;
+$validDate = fn(string $d) => preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $d, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $d : null;
+// สภาพที่เลือกได้ตอนรับคืน · รวมสถานะปัจจุบันไว้เสมอ ไม่ให้ของที่ส่งซ่อม/จำหน่ายแล้วถูกเปลี่ยนเป็น “ใช้งานได้” โดยไม่ตั้งใจ
+$returnStatuses = array_intersect_key(KL_STATUS, array_flip(['normal', 'broken', 'worn', 'lost', $item['status']]));
 
 if (is_post()) {
     csrf_check();
@@ -35,8 +37,9 @@ if (is_post()) {
             if ($who === '') throw new InvalidArgumentException('กรุณากรอกชื่อผู้ยืม/ผู้เบิก');
             $kind = post('kind', 10) === 'issue' ? 'issue' : 'loan';
             $out = $validDate(post('out_on', 10)) ?? $today;
-            $due = $validDate(post('due_on', 10));
+            $due = $kind === 'issue' ? null : $validDate(post('due_on', 10)); // เบิกไปประจำใช้ไม่มีกำหนดคืน
             if ($kind === 'loan' && !$due) throw new InvalidArgumentException('กรุณากำหนดวันส่งคืน');
+            if ($out > $today) throw new InvalidArgumentException('วันที่ยืมต้องไม่เป็นวันในอนาคต');
             if ($due && $due < $out) throw new InvalidArgumentException('วันส่งคืนต้องไม่ก่อนวันยืม');
             db_tx(function () use ($sid, $id, $kind, $who, $out, $due, $uid, $item) {
                 db_exec('INSERT INTO kl_loans (school_id, item_id, kind, borrower, purpose, place, out_on, due_on, approver, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
@@ -44,15 +47,17 @@ if (is_post()) {
                 db_exec('UPDATE kl_items SET on_loan = 1, updated_at = ? WHERE id = ?', [now(), $id]);
                 log_event($sid, $id, 'loan', ($kind === 'issue' ? 'เบิกไปใช้ · ' : 'ให้ยืม · ') . $who . ($due ? ' · กำหนดคืน ' . th_date($due) : ''), $uid);
             });
-            flash(($kind === 'issue' ? 'บันทึกการเบิก' : 'บันทึกการยืม') . 'แล้ว · พิมพ์ใบยืมได้ที่ปุ่ม “ใบยืม”', 'ok');
+            flash($kind === 'issue' ? 'บันทึกการเบิกแล้ว · พิมพ์ใบเบิกได้ที่ปุ่ม “ใบเบิก”' : 'บันทึกการยืมแล้ว · พิมพ์ใบยืมได้ที่ปุ่ม “ใบยืม”', 'ok');
         } elseif ($act === 'return') {
             $loan = open_loan($id);
             if (!$loan) throw new InvalidArgumentException('ไม่มีรายการยืมค้างอยู่');
             $back = $validDate(post('returned_on', 10)) ?? $today;
+            if ($back < $loan['out_on']) throw new InvalidArgumentException('วันที่คืนต้องไม่ก่อนวันที่ยืม');
+            if ($back > max($today, $loan['out_on'])) throw new InvalidArgumentException('วันที่คืนต้องไม่เป็นวันในอนาคต');
             $st = post('status', 20);
-            if (!isset(KL_STATUS[$st])) $st = $item['status'];
+            if (!isset($returnStatuses[$st])) $st = $item['status'];
             db_tx(function () use ($loan, $back, $st, $sid, $id, $uid, $item) {
-                db_exec('UPDATE kl_loans SET returned_on = ?, return_note = ? WHERE id = ?', [$back, post('return_note', 500), $loan['id']]);
+                db_exec('UPDATE kl_loans SET returned_on = ?, return_status = ?, return_note = ? WHERE id = ?', [$back, $st, post('return_note', 500), $loan['id']]);
                 db_exec('UPDATE kl_items SET on_loan = 0, status = ?, updated_at = ? WHERE id = ?', [$st, now(), $id]);
                 $late = $loan['due_on'] && $back > $loan['due_on'] ? ' (เกินกำหนด ' . (int) round((strtotime($back) - strtotime($loan['due_on'])) / 86400) . ' วัน)' : '';
                 log_event($sid, $id, 'return', 'รับคืนจาก ' . $loan['borrower'] . $late . ' · สภาพ ' . status_label($st), $uid);
@@ -172,11 +177,11 @@ page_head($item['asset_no'] . ' ' . $item['name'] . ' · คลังบริ�
     <div>
       <?php if ($loan): ?>
       <section class="panel" id="return">
-        <div class="panel-h"><h2>รับคืน</h2><a class="muted" href="print.php?doc=loan&amp;id=<?= (int) $loan['id'] ?>" target="_blank">ใบยืม PDF</a></div>
+        <div class="panel-h"><h2>รับคืน</h2><a class="muted" href="print.php?doc=loan&amp;id=<?= (int) $loan['id'] ?>" target="_blank"><?= $loan['kind'] === 'issue' ? 'ใบเบิก' : 'ใบยืม' ?> PDF</a></div>
         <form class="panel-b grid" method="post"><?= csrf_field() ?><input type="hidden" name="act" value="return">
           <p class="hint" style="font-size:.9rem;color:var(--ink)"><?= $loan['kind'] === 'issue' ? 'เบิกโดย' : 'ยืมโดย' ?> <b><?= h($loan['borrower']) ?></b> ตั้งแต่ <?= th_date($loan['out_on']) ?><?= $loan['due_on'] ? ' · กำหนดคืน <b' . ($loan['due_on'] < $today ? ' style="color:var(--danger)"' : '') . '>' . th_date($loan['due_on']) . '</b>' : '' ?></p>
-          <div class="field"><label for="returned_on">วันที่คืน</label><input class="input" type="date" id="returned_on" name="returned_on" value="<?= $today ?>"></div>
-          <div class="field"><label for="rst">สภาพเมื่อคืน</label><select class="input" id="rst" name="status"><?= options(array_map(fn($s) => $s[0], array_intersect_key(KL_STATUS, array_flip(['normal', 'broken', 'worn', 'lost']))), $item['status'], true) ?></select></div>
+          <div class="field"><label for="returned_on">วันที่คืน</label><input class="input" type="date" id="returned_on" name="returned_on" value="<?= $today ?>" min="<?= h($loan['out_on']) ?>" max="<?= h(max($today, $loan['out_on'])) ?>"></div>
+          <div class="field"><label for="rst">สภาพเมื่อคืน</label><select class="input" id="rst" name="status"><?= options(array_map(fn($s) => $s[0], $returnStatuses), $item['status'], true) ?></select></div>
           <div class="field"><label for="return_note">บันทึก</label><input class="input" id="return_note" name="return_note" maxlength="500" placeholder="เช่น ครบ สภาพดี"></div>
           <button class="btn btn-gold" type="submit">บันทึกรับคืน</button>
         </form>
@@ -218,7 +223,7 @@ page_head($item['asset_no'] . ' ' . $item['name'] . ' · คลังบริ�
         <div class="panel-h"><h2>ประวัติยืม–คืน</h2></div>
         <ul class="feed"><?php foreach ($loans as $l): ?>
           <li><b><?= h($l['borrower']) ?></b> <span class="muted"><?= $l['kind'] === 'issue' ? 'เบิก' : 'ยืม' ?></span>
-            <time><?= th_date($l['out_on']) ?> → <?= $l['returned_on'] ? 'คืน ' . th_date($l['returned_on']) : '<b>ยังไม่คืน</b>' ?> · <a href="print.php?doc=loan&amp;id=<?= (int) $l['id'] ?>" target="_blank">ใบยืม</a></time></li>
+            <time><?= th_date($l['out_on']) ?> → <?= $l['returned_on'] ? 'คืน ' . th_date($l['returned_on']) : '<b>ยังไม่คืน</b>' ?> · <a href="print.php?doc=loan&amp;id=<?= (int) $l['id'] ?>" target="_blank"><?= $l['kind'] === 'issue' ? 'ใบเบิก' : 'ใบยืม' ?></a></time></li>
         <?php endforeach; ?></ul>
       </section>
       <?php endif; ?>
@@ -246,6 +251,17 @@ import { api } from "./' . asset_v('assets/net.js') . '";
 import * as n from "./' . asset_v('assets/notify.js') . '";
 const id = ' . $id . ';
 const st = document.getElementById("photo-status");
+const dueInput = document.getElementById("due_on");
+if (dueInput) {
+  const defaultDue = dueInput.value;
+  const syncKind = () => {
+    const issue = document.querySelector("input[name=kind]:checked")?.value === "issue";
+    dueInput.closest(".field").style.display = issue ? "none" : "";
+    dueInput.value = issue ? "" : (dueInput.value || defaultDue);
+  };
+  document.querySelectorAll("input[name=kind]").forEach((r) => r.addEventListener("change", syncKind));
+  syncKind();
+}
 document.getElementById("add-photo")?.addEventListener("change", async (e) => {
   const files = [...e.target.files].slice(0, Number(e.target.dataset.room));
   if (!files.length) return;

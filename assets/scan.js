@@ -108,7 +108,7 @@ async function lookup(code) {
 
 function show(it) {
   const img = it.thumb ? `<img class="thumb" src="${esc(it.thumb)}" alt="">` : '<span class="thumb-empty">–</span>';
-  const loan = it.loan ? `<span class="st st-loan${it.loan.late ? ' st-late' : ''}">ถูกยืม · ${esc(it.loan.borrower)} · คืน ${esc(it.loan.due)}</span>` : '';
+  const loan = it.loan ? `<span class="st st-loan${it.loan.late ? ' st-late' : ''}">${it.loan.kind === 'issue' ? 'เบิกไปใช้' : 'ถูกยืม'} · ${esc(it.loan.borrower)}${it.loan.due !== '–' ? ` · คืน ${esc(it.loan.due)}` : ''}</span>` : '';
   const checkBox = mode === 'check' ? `
     <div class="grid" style="margin-top:12px;gap:8px">
       <label class="field"><span class="lbl">สภาพที่พบ</span><select class="input" id="chk-status">${$('t-status').innerHTML}</select></label>
