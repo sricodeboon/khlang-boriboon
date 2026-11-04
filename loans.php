@@ -18,6 +18,9 @@ if (isset($_GET['code'])) {
 
 $open = db_all('SELECT l.*, i.asset_no, i.name AS item_name FROM kl_loans l JOIN kl_items i ON i.id = l.item_id
     WHERE l.school_id = ? AND l.returned_on IS NULL ORDER BY l.due_on IS NULL, l.due_on, l.id', [$sid]);
+// จำนวนชิ้นที่ยังค้างของแต่ละใบยืมชุด (ถ้าค้างมากกว่า 1 ชิ้น แสดงปุ่มรับคืนทั้งชุดที่แถวแรกของชุด)
+$batchLeft = array_count_values(array_map('intval', array_filter(array_column($open, 'batch_id'))));
+$batchShown = [];
 $done = db_all('SELECT l.*, i.asset_no, i.name AS item_name FROM kl_loans l JOIN kl_items i ON i.id = l.item_id
     WHERE l.school_id = ? AND l.returned_on IS NOT NULL ORDER BY l.returned_on DESC, l.id DESC LIMIT 100', [$sid]);
 
@@ -29,7 +32,8 @@ page_head('ยืม–คืน · คลังบริบูรณ์', 'loan
     <form class="actions" method="get" role="search">
       <input class="input mono" name="code" required placeholder="เลขครุภัณฑ์ที่จะยืม/คืน" aria-label="เลขครุภัณฑ์" style="width:16rem">
       <button class="btn btn-primary" type="submit">ถัดไป</button>
-      <a class="btn" href="scan.php">สแกน</a>
+      <a class="btn" href="scan.php?mode=loan">ยืม/เบิกหลายรายการ</a>
+      <a class="btn" href="scan.php?mode=return">รับคืนหลายรายการ</a>
     </form>
   </div>
 
@@ -40,14 +44,17 @@ page_head('ยืม–คืน · คลังบริบูรณ์', 'loan
       <thead><tr><th>ครุภัณฑ์</th><th>ผู้ยืม/ผู้เบิก</th><th>วันที่ยืม</th><th>กำหนดคืน</th><th>ติดตาม</th><th></th></tr></thead>
       <tbody><?php foreach ($open as $l):
         $late = $l['due_on'] && $l['due_on'] < $today;
-        $chase = $l['due_on'] ? date('Y-m-d', strtotime($l['due_on'] . ' +7 days')) : null; ?>
+        $chase = $l['due_on'] ? date('Y-m-d', strtotime($l['due_on'] . ' +7 days')) : null;
+        $b = (int) $l['batch_id'];
+        $showBatch = $b && ($batchLeft[$b] ?? 0) > 1 && !isset($batchShown[$b]);
+        if ($showBatch) $batchShown[$b] = true; ?>
         <tr>
           <td><a class="no rowlink" href="item.php?id=<?= (int) $l['item_id'] ?>"><?= h($l['asset_no']) ?></a><span class="sub"><?= h($l['item_name']) ?></span></td>
-          <td><?= h($l['borrower']) ?><span class="sub"><?= $l['kind'] === 'issue' ? 'เบิกไปประจำใช้' : 'ยืม' ?><?= $l['place'] ? ' · ' . h($l['place']) : '' ?></span></td>
+          <td><?= h($l['borrower']) ?><span class="sub"><?= $l['kind'] === 'issue' ? 'เบิกไปประจำใช้' : 'ยืม' ?><?= $l['place'] ? ' · ' . h($l['place']) : '' ?><?= $b ? ' · ใบเลขที่ ' . $b : '' ?></span></td>
           <td><?= th_date($l['out_on']) ?></td>
           <td><?= $l['due_on'] ? th_date($l['due_on']) : '–' ?></td>
           <td><?php if ($late): ?><span class="st st-late">เกิน <?= (int) round((strtotime($today) - strtotime($l['due_on'])) / 86400) ?> วัน</span><span class="sub">ทวงคืนภายใน <?= th_date($chase) ?></span><?php else: ?><span class="muted">–</span><?php endif; ?></td>
-          <td><div class="actions"><a class="btn btn-sm" href="item.php?id=<?= (int) $l['item_id'] ?>#return">รับคืน</a><a class="btn btn-sm" href="print.php?doc=loan&amp;id=<?= (int) $l['id'] ?>" target="_blank">ใบยืม</a></div></td>
+          <td><div class="actions"><?php if ($showBatch): ?><a class="btn btn-sm btn-gold" href="scan.php?mode=return&amp;batch=<?= $b ?>">รับคืนทั้งชุด (<?= $batchLeft[$b] ?>)</a><?php endif; ?><a class="btn btn-sm" href="item.php?id=<?= (int) $l['item_id'] ?>#return">รับคืน</a><a class="btn btn-sm" href="print.php?doc=loan&amp;id=<?= (int) $l['id'] ?>" target="_blank"><?= $l['kind'] === 'issue' ? 'ใบเบิก' : 'ใบยืม' ?></a></div></td>
         </tr>
       <?php endforeach; ?></tbody>
     </table></div><?php endif; ?>

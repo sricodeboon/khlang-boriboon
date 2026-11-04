@@ -118,6 +118,8 @@ function kl_migrate(PDO $pdo, string $driver): void {
         ? array_column($pdo->query('SHOW COLUMNS FROM kl_loans')->fetchAll(), 'Field')
         : array_column($pdo->query('PRAGMA table_info(kl_loans)')->fetchAll(), 'name');
     if (!in_array('return_status', $loanCols, true)) $pdo->exec('ALTER TABLE kl_loans ADD COLUMN return_status VARCHAR(20) NULL');
+    // ยืมพร้อมกันหลายชิ้น: batch_id = id ของแถวแรกในชุด (ใช้เป็นเลขที่ใบยืม) · ยืมชิ้นเดียว = NULL
+    if (!in_array('batch_id', $loanCols, true)) $pdo->exec('ALTER TABLE kl_loans ADD COLUMN batch_id INT NULL');
     // ประวัติทุกความเคลื่อนไหวของครุภัณฑ์ (ใช้เป็นบันทึกในทะเบียนคุม)
     $pdo->exec("CREATE TABLE IF NOT EXISTS kl_log (
         id $id,
@@ -134,6 +136,7 @@ function kl_migrate(PDO $pdo, string $driver): void {
         'kl_items_school_upd' => 'kl_items (school_id, updated_at)',
         'kl_loans_school_open' => 'kl_loans (school_id, returned_on, due_on)',
         'kl_loans_item' => 'kl_loans (item_id, out_on)',
+        'kl_loans_batch' => 'kl_loans (school_id, batch_id)',
         'kl_log_item' => 'kl_log (item_id, at)',
         'kl_log_school' => 'kl_log (school_id, at)',
     ] as $name => $on) {

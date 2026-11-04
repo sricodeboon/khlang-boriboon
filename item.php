@@ -13,9 +13,7 @@ if (!$item) { flash('ไม่พบครุภัณฑ์นี้'); redirec
 $set = settings($sid);
 $uid = (int) $u['id'];
 $today = date('Y-m-d');
-$validDate = fn(string $d) => preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $d, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $d : null;
-// สภาพที่เลือกได้ตอนรับคืน · รวมสถานะปัจจุบันไว้เสมอ ไม่ให้ของที่ส่งซ่อม/จำหน่ายแล้วถูกเปลี่ยนเป็น “ใช้งานได้” โดยไม่ตั้งใจ
-$returnStatuses = array_intersect_key(KL_STATUS, array_flip(['normal', 'broken', 'worn', 'lost', $item['status']]));
+$returnStatuses = return_statuses($item);
 
 if (is_post()) {
     csrf_check();
@@ -31,37 +29,12 @@ if (is_post()) {
                 flash('เปลี่ยนสถานะเป็น “' . status_label($st) . '” แล้ว', 'ok');
             }
         } elseif ($act === 'loan') {
-            if ($item['on_loan']) throw new InvalidArgumentException('ครุภัณฑ์นี้ยังไม่ได้คืนจากการยืมครั้งก่อน');
-            if (in_array($item['status'], ['lost', 'disposed', 'dispose', 'broken', 'fixing'], true)) throw new InvalidArgumentException('สถานะ “' . status_label($item['status']) . '” ให้ยืมไม่ได้');
-            $who = post('borrower', 200);
-            if ($who === '') throw new InvalidArgumentException('กรุณากรอกชื่อผู้ยืม/ผู้เบิก');
             $kind = post('kind', 10) === 'issue' ? 'issue' : 'loan';
-            $out = $validDate(post('out_on', 10)) ?? $today;
-            $due = $kind === 'issue' ? null : $validDate(post('due_on', 10)); // เบิกไปประจำใช้ไม่มีกำหนดคืน
-            if ($kind === 'loan' && !$due) throw new InvalidArgumentException('กรุณากำหนดวันส่งคืน');
-            if ($out > $today) throw new InvalidArgumentException('วันที่ยืมต้องไม่เป็นวันในอนาคต');
-            if ($due && $due < $out) throw new InvalidArgumentException('วันส่งคืนต้องไม่ก่อนวันยืม');
-            db_tx(function () use ($sid, $id, $kind, $who, $out, $due, $uid, $item) {
-                db_exec('INSERT INTO kl_loans (school_id, item_id, kind, borrower, purpose, place, out_on, due_on, approver, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                    [$sid, $id, $kind, $who, post('purpose', 500), post('place', 200), $out, $due, post('approver', 200), $uid, now()]);
-                db_exec('UPDATE kl_items SET on_loan = 1, updated_at = ? WHERE id = ?', [now(), $id]);
-                log_event($sid, $id, 'loan', ($kind === 'issue' ? 'เบิกไปใช้ · ' : 'ให้ยืม · ') . $who . ($due ? ' · กำหนดคืน ' . th_date($due) : ''), $uid);
-            });
+            loans_create($sid, [$id], ['kind' => $kind, 'borrower' => post('borrower', 200), 'purpose' => post('purpose', 500), 'place' => post('place', 200),
+                'out_on' => post('out_on', 10), 'due_on' => post('due_on', 10), 'approver' => post('approver', 200)], $uid);
             flash($kind === 'issue' ? 'บันทึกการเบิกแล้ว · พิมพ์ใบเบิกได้ที่ปุ่ม “ใบเบิก”' : 'บันทึกการยืมแล้ว · พิมพ์ใบยืมได้ที่ปุ่ม “ใบยืม”', 'ok');
         } elseif ($act === 'return') {
-            $loan = open_loan($id);
-            if (!$loan) throw new InvalidArgumentException('ไม่มีรายการยืมค้างอยู่');
-            $back = $validDate(post('returned_on', 10)) ?? $today;
-            if ($back < $loan['out_on']) throw new InvalidArgumentException('วันที่คืนต้องไม่ก่อนวันที่ยืม');
-            if ($back > max($today, $loan['out_on'])) throw new InvalidArgumentException('วันที่คืนต้องไม่เป็นวันในอนาคต');
-            $st = post('status', 20);
-            if (!isset($returnStatuses[$st])) $st = $item['status'];
-            db_tx(function () use ($loan, $back, $st, $sid, $id, $uid, $item) {
-                db_exec('UPDATE kl_loans SET returned_on = ?, return_status = ?, return_note = ? WHERE id = ?', [$back, $st, post('return_note', 500), $loan['id']]);
-                db_exec('UPDATE kl_items SET on_loan = 0, status = ?, updated_at = ? WHERE id = ?', [$st, now(), $id]);
-                $late = $loan['due_on'] && $back > $loan['due_on'] ? ' (เกินกำหนด ' . (int) round((strtotime($back) - strtotime($loan['due_on'])) / 86400) . ' วัน)' : '';
-                log_event($sid, $id, 'return', 'รับคืนจาก ' . $loan['borrower'] . $late . ' · สภาพ ' . status_label($st), $uid);
-            });
+            loans_return($sid, [['id' => $id, 'status' => post('status', 20), 'note' => post('return_note', 500)]], post('returned_on', 10), $uid);
             flash('รับคืนแล้ว', 'ok');
         } elseif ($act === 'delete') {
             // ลบได้เฉพาะที่ลงผิดภายในวันเดียวกันและไม่เคยยืม — ของจริงต้องใช้ “จำหน่าย” ตามระเบียบ ไม่ลบทิ้ง

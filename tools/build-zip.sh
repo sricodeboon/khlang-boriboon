@@ -11,6 +11,6 @@ find vendor/mpdf/mpdf/ttfonts -type f ! -name 'DejaVuSansCondensed*' -delete
 printf 'Require all denied\n' > vendor/.htaccess
 cd ..
 rm -f ../khlang.zip
-zip -qr -X ../khlang.zip khlang -x "*.DS_Store" "khlang/.git/*" "khlang/.gitignore" "khlang/storage/photos/*" "khlang/storage/tmp/*" \
-  "khlang/config.php" "khlang/README.md" "khlang/LICENSE" "khlang/docs/*" "khlang/tools/*" "khlang/composer.json" "khlang/composer.lock" "khlang/*.pdf"
+zip -qr -X ../khlang.zip khlang -x "*.DS_Store" "khlang/.git/*" "khlang/.claude/*" "khlang/.gitignore" "khlang/storage/photos/*" "khlang/storage/tmp/*" \
+  "khlang/config.php" "khlang/README.md" "khlang/LICENSE" "khlang/docs/*" "khlang/tools/*" "khlang/tests/*" "khlang/composer.json" "khlang/composer.lock" "khlang/*.pdf"
 ls -la ../khlang.zip

@@ -1,6 +1,7 @@
 // สแกน QR/บาร์โค้ด: ใช้ BarcodeDetector ของเบราว์เซอร์ (Chrome/Android) ถ้าไม่มี (iPhone Safari, Firefox) โหลด ZXing จากในระบบ
 import { api } from './net.js';
 import * as notify from './notify.js';
+import { makeCart } from './scan-cart.js';
 
 const $ = (id) => document.getElementById(id);
 const mode = document.querySelector('.scan')?.dataset.mode || 'view';
@@ -8,6 +9,7 @@ const video = $('video'), msg = $('cam-msg'), result = $('result');
 const FORMATS = ['qr_code', 'code_128', 'code_39', 'ean_13', 'ean_8'];
 let stream = null, running = false, facing = 'environment', detect = null;
 let last = { code: '', at: 0 };
+const cart = mode === 'loan' || mode === 'return' ? makeCart(mode) : null;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -87,8 +89,11 @@ async function loop() {
       const now = Date.now();
       if (code && !(code === last.code && now - last.at < 4000)) {
         last = { code, at: now };
-        navigator.vibrate?.(60);
-        lookup(code);
+        // กล้องยังเล็งสติกเกอร์เดิมที่เพิ่มไปแล้ว ไม่ต้องเตือนซ้ำ
+        if (!cart?.has(code)) {
+          navigator.vibrate?.(60);
+          lookup(code);
+        }
       }
     }
     await new Promise((r) => setTimeout(r, 180));
@@ -96,6 +101,7 @@ async function loop() {
 }
 
 async function lookup(code) {
+  if (cart) return cart.lookup(code);
   result.hidden = false;
   result.innerHTML = '<div class="panel-b muted">กำลังค้นหา…</div>';
   try {
