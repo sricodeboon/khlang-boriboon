@@ -237,6 +237,18 @@ legend { font-family:var(--display); font-weight:600; font-size:1.02rem; padding
 .viewer .aim::after { content:""; position:absolute; left:6%; right:6%; top:50%; border-top:1px solid rgba(227,184,90,.6); }
 .viewer .msg { position:absolute; inset:0; display:grid; place-items:center; color:#BFCAD3; text-align:center; padding:24px; font-size:.95rem; }
 .scan-result { border-left:3px solid var(--blue); }
+.seg-scroll { display:flex; max-width:100%; overflow-x:auto; }
+.seg-scroll a { flex:none; }
+@media (max-width:480px) { .seg-scroll a { padding-inline:9px; } }
+.cart-msg { margin:0; padding:10px 16px; background:#FFF4E5; color:#8A4B00; font-size:.9rem; }
+.cart-list { list-style:none; margin:0; padding:0; max-height:50vh; overflow-y:auto; }
+.cart-list li { padding:10px 16px; border-bottom:1px solid var(--line); }
+.cart-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:start; }
+.cart-row .no { display:block; overflow-wrap:anywhere; }
+.cart-del { all:unset; cursor:pointer; width:40px; height:40px; display:grid; place-items:center; margin:-6px -8px 0 0; color:var(--muted); font-size:1.2rem; border-radius:var(--r); }
+.cart-del:hover, .cart-del:focus-visible { background:var(--line); color:var(--ink); }
+.cart-ret { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:6px; margin-top:8px; }
+.cart-done { background:#EAF2FB; }
 .found { display:grid; grid-template-columns:72px minmax(0,1fr); gap:12px; align-items:start; }
 .found img, .found .thumb-empty { width:72px; height:72px; }
 

@@ -324,6 +324,125 @@ function open_loan(int $itemId): ?array {
     return db_one('SELECT * FROM kl_loans WHERE item_id = ? AND returned_on IS NULL ORDER BY id DESC LIMIT 1', [$itemId]);
 }
 
+const KL_LOAN_MAX = 100; // จำนวนชิ้นสูงสุดต่อชุด (ใบยืม 1 ใบ)
+
+function valid_date(string $d): ?string {
+    return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $d, $m) && checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $d : null;
+}
+
+/** เหตุผลที่ยืม/เบิกชิ้นนี้ไม่ได้ · null = ยืมได้ */
+function item_loan_block(array $item): ?string {
+    if ($item['on_loan']) return 'ยังไม่ได้คืนจากการยืมครั้งก่อน';
+    if (in_array($item['status'], ['lost', 'disposed', 'dispose', 'broken', 'fixing'], true)) return 'สถานะ “' . status_label($item['status']) . '” ให้ยืมไม่ได้';
+    return null;
+}
+
+/** สภาพที่เลือกได้ตอนรับคืน · รวมสถานะปัจจุบันไว้เสมอ ไม่ให้ของที่ส่งซ่อม/จำหน่ายแล้วถูกเปลี่ยนเป็น “ใช้งานได้” โดยไม่ตั้งใจ */
+function return_statuses(array $item): array {
+    return array_intersect_key(KL_STATUS, array_flip(['normal', 'broken', 'worn', 'lost', $item['status']]));
+}
+
+/**
+ * ยืม/เบิกหนึ่งชิ้นหรือหลายชิ้นด้วยข้อมูลชุดเดียว — สำเร็จทั้งชุดหรือไม่บันทึกเลย
+ * $d: kind, borrower, purpose, place, out_on, due_on, approver · คืน id แถวแรก (ใช้เปิดใบยืม)
+ */
+function loans_create(int $schoolId, array $itemIds, array $d, int $userId): int {
+    $ids = array_values(array_unique(array_map('intval', $itemIds)));
+    if (!$ids) throw new InvalidArgumentException('ยังไม่ได้เลือกครุภัณฑ์');
+    if (count($ids) > KL_LOAN_MAX) throw new InvalidArgumentException('ยืมได้ครั้งละไม่เกิน ' . KL_LOAN_MAX . ' รายการ');
+    $text = fn(string $k, int $max) => mb_substr(trim((string) ($d[$k] ?? '')), 0, $max);
+    $who = $text('borrower', 200);
+    if ($who === '') throw new InvalidArgumentException('กรุณากรอกชื่อผู้ยืม/ผู้เบิก');
+    $today = date('Y-m-d');
+    $kind = ($d['kind'] ?? '') === 'issue' ? 'issue' : 'loan';
+    $out = valid_date((string) ($d['out_on'] ?? '')) ?? $today;
+    $due = $kind === 'issue' ? null : valid_date((string) ($d['due_on'] ?? '')); // เบิกไปประจำใช้ไม่มีกำหนดคืน
+    if ($kind === 'loan' && !$due) throw new InvalidArgumentException('กรุณากำหนดวันส่งคืน');
+    if ($out > $today) throw new InvalidArgumentException('วันที่ยืมต้องไม่เป็นวันในอนาคต');
+    if ($due && $due < $out) throw new InvalidArgumentException('วันส่งคืนต้องไม่ก่อนวันยืม');
+    $purpose = $text('purpose', 500); $place = $text('place', 200); $approver = $text('approver', 200);
+
+    return db_tx(function () use ($schoolId, $ids, $kind, $who, $purpose, $place, $out, $due, $approver, $userId) {
+        $items = [];
+        $bad = [];
+        foreach ($ids as $id) {
+            $it = item_get($schoolId, $id);
+            if (!$it) throw new InvalidArgumentException('ไม่พบครุภัณฑ์บางรายการในทะเบียนของโรงเรียน');
+            if ($why = item_loan_block($it)) $bad[] = $it['asset_no'] . ' ' . $why;
+            $items[] = $it;
+        }
+        if ($bad) throw new InvalidArgumentException(implode(' · ', $bad));
+        $multi = count($items) > 1;
+        $first = 0;
+        foreach ($items as $it) {
+            $id = (int) $it['id'];
+            // WHERE on_loan = 0 กันสองคนยืมชิ้นเดียวกันพร้อมกันบน MySQL (ธุรกรรมไม่ได้ล็อกตอนอ่าน)
+            if (!db_exec('UPDATE kl_items SET on_loan = 1, updated_at = ? WHERE id = ? AND on_loan = 0', [now(), $id])) {
+                throw new InvalidArgumentException($it['asset_no'] . ' เพิ่งถูกยืมไปเมื่อสักครู่');
+            }
+            db_exec('INSERT INTO kl_loans (school_id, item_id, kind, borrower, purpose, place, out_on, due_on, approver, batch_id, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+                [$schoolId, $id, $kind, $who, $purpose, $place, $out, $due, $approver, $first ?: null, $userId, now()]);
+            if (!$first) {
+                $first = (int) db()->lastInsertId();
+                if ($multi) db_exec('UPDATE kl_loans SET batch_id = ? WHERE id = ?', [$first, $first]);
+            }
+            log_event($schoolId, $id, 'loan', ($kind === 'issue' ? 'เบิกไปใช้ · ' : 'ให้ยืม · ') . $who . ($due ? ' · กำหนดคืน ' . th_date($due) : '') . ($multi ? ' · ใบเลขที่ ' . $first . ' (' . count($items) . ' รายการ)' : ''), $userId);
+        }
+        return $first;
+    });
+}
+
+/**
+ * รับคืนหนึ่งชิ้นหรือหลายชิ้น คนละสภาพได้ — สำเร็จทั้งหมดหรือไม่บันทึกเลย
+ * $rows: [['id' => item_id, 'status' => ..., 'note' => ...], ...] · คืนจำนวนชิ้นที่รับคืน
+ */
+function loans_return(int $schoolId, array $rows, string $returnedOn, int $userId): int {
+    if (!$rows) throw new InvalidArgumentException('ยังไม่ได้เลือกครุภัณฑ์');
+    if (count($rows) > KL_LOAN_MAX) throw new InvalidArgumentException('รับคืนได้ครั้งละไม่เกิน ' . KL_LOAN_MAX . ' รายการ');
+    $today = date('Y-m-d');
+    $back = valid_date($returnedOn) ?? $today;
+    $multi = count($rows) > 1;
+    return db_tx(function () use ($schoolId, $rows, $back, $today, $userId, $multi) {
+        $n = 0;
+        $seen = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if (isset($seen[$id])) continue;
+            $seen[$id] = true;
+            $it = item_get($schoolId, $id);
+            if (!$it) throw new InvalidArgumentException('ไม่พบครุภัณฑ์บางรายการในทะเบียนของโรงเรียน');
+            $tag = $multi ? $it['asset_no'] . ': ' : '';
+            $loan = open_loan($id);
+            if (!$loan) throw new InvalidArgumentException($tag . 'ไม่มีรายการยืมค้างอยู่');
+            if ($back < $loan['out_on']) throw new InvalidArgumentException($tag . 'วันที่คืนต้องไม่ก่อนวันที่ยืม');
+            if ($back > max($today, $loan['out_on'])) throw new InvalidArgumentException($tag . 'วันที่คืนต้องไม่เป็นวันในอนาคต');
+            $st = (string) ($row['status'] ?? '');
+            if (!isset(return_statuses($it)[$st])) $st = $it['status'];
+            $note = mb_substr(trim((string) ($row['note'] ?? '')), 0, 500);
+            if (!db_exec('UPDATE kl_loans SET returned_on = ?, return_status = ?, return_note = ? WHERE id = ? AND returned_on IS NULL', [$back, $st, $note, $loan['id']])) {
+                throw new InvalidArgumentException($tag . 'เพิ่งถูกรับคืนไปเมื่อสักครู่');
+            }
+            db_exec('UPDATE kl_items SET on_loan = 0, status = ?, updated_at = ? WHERE id = ?', [$st, now(), $id]);
+            $late = $loan['due_on'] && $back > $loan['due_on'] ? ' (เกินกำหนด ' . (int) round((strtotime($back) - strtotime($loan['due_on'])) / 86400) . ' วัน)' : '';
+            log_event($schoolId, $id, 'return', 'รับคืนจาก ' . $loan['borrower'] . $late . ' · สภาพ ' . status_label($st), $userId);
+            $n++;
+        }
+        return $n;
+    });
+}
+
+/** ข้อมูลสำหรับพิมพ์ใบยืม: ทุกแถวในชุดเดียวกับ $loanId · ['no' => เลขที่ใบ, 'loans' => [...], 'items' => [item_id => item]] */
+function loan_slip(int $schoolId, int $loanId): ?array {
+    $loan = db_one('SELECT * FROM kl_loans WHERE id = ? AND school_id = ?', [$loanId, $schoolId]);
+    if (!$loan) return null;
+    $loans = $loan['batch_id'] ? db_all('SELECT * FROM kl_loans WHERE school_id = ? AND batch_id = ? ORDER BY id', [$schoolId, (int) $loan['batch_id']]) : [$loan];
+    $items = [];
+    foreach ($loans as $l) $items[(int) $l['item_id']] = item_get($schoolId, (int) $l['item_id']);
+    // ในใบเรียงตามเลขครุภัณฑ์ ไม่ใช่ตามลำดับที่สแกน
+    usort($loans, fn($a, $b) => strnatcmp($items[(int) $a['item_id']]['asset_no'], $items[(int) $b['item_id']]['asset_no']));
+    return ['no' => (int) ($loan['batch_id'] ?: $loan['id']), 'loans' => $loans, 'items' => $items];
+}
+
 function public_url(array $item): string { return base_url('s.php?t=' . $item['token']); }
 
 /** ลบข้อมูลของโรงเรียนที่ไม่มีแล้ว (โรงเรียนทดลองของตารางบริบูรณ์ถูกลบเองหลัง 48 ชม.) */

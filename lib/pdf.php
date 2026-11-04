@@ -202,24 +202,38 @@ function pdf_list(array $items, array $school, array $set, string $subtitle): Mp
 }
 
 // ---------------- ใบยืมพัสดุ ----------------
-function pdf_loan(array $loan, array $it, array $school, array $set): Mpdf {
+function pdf_loan(array $slip, array $school, array $set): Mpdf {
     $m = make_mpdf('A4', ['margin_top' => 18, 'margin_left' => 25, 'margin_right' => 20]);
+    $loans = $slip['loans'];
+    $loan = $loans[0]; // ผู้ยืม วันที่ และกำหนดคืนเหมือนกันทั้งชุด
+    $multi = count($loans) > 1;
     $issue = $loan['kind'] === 'issue';
-    $m->SetTitle(($issue ? 'ใบเบิกพัสดุ ' : 'ใบยืมพัสดุ ') . $it['asset_no']);
-    $cond = implode(' · ', array_filter([!empty($loan['return_status']) ? status_label($loan['return_status']) : '', (string) $loan['return_note']], fn($x) => $x !== ''));
-    $html = PDF_CSS . '<div style="text-align:right;font-size:13pt">เลขที่ ' . (int) $loan['id'] . '/' . fiscal_year($loan['out_on']) . '</div>
-<h1>' . ($issue ? 'ใบเบิกพัสดุ' : 'ใบยืมพัสดุ') . '</h1>
+    $word = $issue ? 'เบิก' : 'ยืม';
+    $m->SetTitle('ใบ' . $word . 'พัสดุ ' . $slip['items'][(int) $loan['item_id']]['asset_no'] . ($multi ? ' และอีก ' . (count($loans) - 1) . ' รายการ' : ''));
+    $cond = fn(array $l) => implode(' · ', array_filter([!empty($l['return_status']) ? status_label($l['return_status']) : '', (string) $l['return_note']], fn($x) => $x !== ''));
+    $rows = '';
+    foreach ($loans as $i => $l) {
+        $it = $slip['items'][(int) $l['item_id']];
+        $brand = trim($it['brand'] . ' ' . $it['model']);
+        $rows .= '<tr><td class="c">' . ($i + 1) . '</td><td>' . e($it['asset_no']) . '</td><td>' . e($it['name'] . ($brand ? ' ' . $brand : '') . ($it['serial_no'] ? ' S/N ' . $it['serial_no'] : '')) . '</td><td class="c">1 ' . e($it['unit'] ?: 'หน่วย') . '</td>'
+            . ($multi ? '<td>' . ($l['returned_on'] ? th_date($l['returned_on']) . ($cond($l) !== '' ? '<br>' . e($cond($l)) : '') : '') . '</td>' : '') . '</tr>';
+    }
+    $returned = $multi
+        ? 'ได้รับพัสดุคืนแล้ว ตามวันที่และสภาพที่บันทึกในช่อง “การส่งคืน” ของตารางข้างต้น'
+        : 'ได้รับพัสดุคืนแล้ว เมื่อวันที่ ' . ($loan['returned_on'] ? th_date($loan['returned_on']) : '..........................................') . ' สภาพ ' . e($cond($loan) !== '' ? $cond($loan) : '..........................................................');
+    $html = PDF_CSS . '<div style="text-align:right;font-size:13pt">เลขที่ ' . $slip['no'] . '/' . fiscal_year($loan['out_on']) . '</div>
+<h1>ใบ' . $word . 'พัสดุ</h1>
 <p class="sub">' . e($school['name']) . '</p>
 <p style="text-align:right">วันที่ ' . th_date($loan['out_on']) . '</p>
-<p style="text-indent:15mm;text-align:justify">ข้าพเจ้า ' . e($loan['borrower']) . ' ขอ' . ($issue ? 'เบิก' : 'ยืม') . 'พัสดุตามรายการข้างล่างนี้ เพื่อใช้ในงาน ' . e($loan['purpose'] ?: '..................................................') . ' ณ ' . e($loan['place'] ?: '..................................................')
+<p style="text-indent:15mm;text-align:justify">ข้าพเจ้า ' . e($loan['borrower']) . ' ขอ' . $word . 'พัสดุตามรายการข้างล่างนี้' . ($multi ? ' รวม ' . count($loans) . ' รายการ' : '') . ' เพื่อใช้ในงาน ' . e($loan['purpose'] ?: '..................................................') . ' ณ ' . e($loan['place'] ?: '..................................................')
         . ($loan['due_on'] ? ' และจะส่งคืนภายในวันที่ ' . th_date($loan['due_on']) : '') . '</p>
-<table class="t" style="margin:3mm 0"><thead><tr><th width="8%">ที่</th><th width="28%">เลขครุภัณฑ์</th><th>รายการ</th><th width="12%">จำนวน</th></tr></thead>
-<tbody><tr><td class="c">1</td><td>' . e($it['asset_no']) . '</td><td>' . e($it['name'] . (trim($it['brand'] . ' ' . $it['model']) ? ' ' . trim($it['brand'] . ' ' . $it['model']) : '') . ($it['serial_no'] ? ' S/N ' . $it['serial_no'] : '')) . '</td><td class="c">1 ' . e($it['unit'] ?: 'หน่วย') . '</td></tr></tbody></table>
-<p style="text-indent:15mm;text-align:justify">หากพัสดุที่' . ($issue ? 'เบิก' : 'ยืม') . 'ไปเกิดชำรุดเสียหาย หรือใช้การไม่ได้ หรือสูญหายไป ข้าพเจ้าจะจัดการแก้ไขซ่อมแซมให้คงสภาพเดิม หรือชดใช้เป็นพัสดุประเภท ชนิด ขนาด ลักษณะ และคุณภาพอย่างเดียวกัน หรือชดใช้เป็นเงินตามราคาที่เป็นอยู่ในขณะยืม ตามระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 209</p>
-<table class="sign"><tr>' . sign_cell('ผู้' . ($issue ? 'เบิก' : 'ยืม'), $loan['borrower'], '') . sign_cell('ผู้อนุมัติ', $loan['approver'] ?: $set['boss'], $loan['approver'] && $loan['approver'] !== $set['boss'] ? '' : $set['boss_pos']) . '</tr>
+<table class="t" repeat_header="1" style="margin:3mm 0"><thead><tr><th width="8%">ที่</th><th width="' . ($multi ? 24 : 28) . '%">เลขครุภัณฑ์</th><th>รายการ</th><th width="' . ($multi ? 10 : 12) . '%">จำนวน</th>' . ($multi ? '<th width="20%">การส่งคืน</th>' : '') . '</tr></thead>
+<tbody>' . $rows . '</tbody></table>
+<p style="text-indent:15mm;text-align:justify">หากพัสดุที่' . $word . 'ไปเกิดชำรุดเสียหาย หรือใช้การไม่ได้ หรือสูญหายไป ข้าพเจ้าจะจัดการแก้ไขซ่อมแซมให้คงสภาพเดิม หรือชดใช้เป็นพัสดุประเภท ชนิด ขนาด ลักษณะ และคุณภาพอย่างเดียวกัน หรือชดใช้เป็นเงินตามราคาที่เป็นอยู่ในขณะยืม ตามระเบียบกระทรวงการคลังว่าด้วยการจัดซื้อจัดจ้างและการบริหารพัสดุภาครัฐ พ.ศ. 2560 ข้อ 209</p>
+<table class="sign"><tr>' . sign_cell('ผู้' . $word, $loan['borrower'], '') . sign_cell('ผู้อนุมัติ', $loan['approver'] ?: $set['boss'], $loan['approver'] && $loan['approver'] !== $set['boss'] ? '' : $set['boss_pos']) . '</tr>
 <tr>' . sign_cell('ผู้จ่ายพัสดุ', $set['officer'], $set['officer_pos']) . '<td></td></tr></table>
 <div style="margin-top:8mm;border-top:0.2mm solid #000;padding-top:3mm"><b>การส่งคืน</b><br>
-ได้รับพัสดุคืนแล้ว เมื่อวันที่ ' . ($loan['returned_on'] ? th_date($loan['returned_on']) : '..........................................') . ' สภาพ ' . e($cond !== '' ? $cond : '..........................................................') . '</div>
+' . $returned . '</div>
 <table class="sign" style="margin-top:2mm"><tr>' . sign_cell('ผู้ส่งคืน', $loan['borrower'], '') . sign_cell('ผู้รับคืน', $set['officer'], $set['officer_pos']) . '</tr></table>';
     pdf_write($m, $html);
     return $m;

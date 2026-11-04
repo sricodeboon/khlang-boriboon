@@ -65,9 +65,9 @@ if ($makePdf) {
             if (isset(KL_STATUS[$_GET['status'] ?? ''])) $sub[] = status_label((string) $_GET['status']);
             send_pdf(pdf_list($items, $school, $set, implode(' · ', $sub)), 'list.pdf');
         case 'loan':
-            $loan = db_one('SELECT * FROM kl_loans WHERE id = ? AND school_id = ?', [(int) ($_GET['id'] ?? 0), $sid]);
-            if (!$loan) break;
-            send_pdf(pdf_loan($loan, item_get($sid, (int) $loan['item_id']), $school, $set), 'loan.pdf');
+            $slip = loan_slip($sid, (int) ($_GET['id'] ?? 0));
+            if (!$slip) break;
+            send_pdf(pdf_loan($slip, $school, $set), 'loan.pdf');
         case 'check':
             $items = db_all("SELECT * FROM kl_items WHERE school_id = ? AND status <> 'disposed' ORDER BY cat_code, fy, seq", [$sid]);
             send_pdf(pdf_check($items, $school, $set, fiscal_year()), 'check.pdf');

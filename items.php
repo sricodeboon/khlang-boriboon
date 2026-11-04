@@ -104,6 +104,8 @@ page_head('ทะเบียนครุภัณฑ์ · คลังบร�
         <span>เลือก <b data-check-count>0</b> รายการ</span>
         <button class="btn btn-sm" name="doc" value="sticker" data-needs-check>พิมพ์สติกเกอร์ QR</button>
         <button class="btn btn-sm" name="doc" value="register" data-needs-check>ทะเบียนคุม PDF</button>
+        <button class="btn btn-sm" name="mode" value="loan" formaction="scan.php" formtarget="_self" data-needs-check>ยืม/เบิกรายการที่เลือก</button>
+        <button class="btn btn-sm" name="mode" value="return" formaction="scan.php" formtarget="_self" data-needs-check>รับคืนรายการที่เลือก</button>
       </div>
     </form>
     <?php if ($pages > 1): ?>
